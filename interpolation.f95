@@ -1,5 +1,5 @@
-! Environment: Linux(Ubuntu 24.04)
-! Complier: gfortran
+! Environment: Linux(Ubuntu 24.04), Windows11
+! Complier: gfortran, Intel Visual Fortran
 ! Author: Jiarui Xiong(Sheliak Wolf)
 ! Last update: 2024/09/25 Wed
 
