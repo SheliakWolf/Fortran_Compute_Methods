@@ -11,7 +11,7 @@ module Interpolation
 
 
     private
-    public      :: newton, lagrange, linear, hermite, cubic_hermite
+    public      :: newton, lagrange, linear, hermite, cubic_hermite, spline
     public      :: my
 
     type        :: my_type
@@ -21,6 +21,7 @@ module Interpolation
         procedure,nopass    :: linear
         procedure,nopass    :: hermite
         procedure,nopass    :: cubic_hermite
+        procedure,nopass    :: spline
     end type my_type
     type(my_type)   :: my
 
@@ -113,7 +114,7 @@ module Interpolation
 
             do i=1,m
                 do j=1,n-1
-                    if (abs(input(i) - x(j)) < abs(x(j) - x(j+1))) then
+                    if (abs(input(i) - x(j)) < 0.001 * abs(x(j) - x(j+1))) then
                         output(i) = y(j)
                         exit
                     endif
@@ -190,6 +191,14 @@ module Interpolation
                     output(j) = output(j) +  y(i) * hermite1(1,i,j) + yp(i) * hermite1(2,i,j)
                 enddo
             enddo
+            do i=1,m
+                do j=1,n-1
+                    if (abs(input(i) - x(j)) < (0.001 * (x(j+1) - x(j)))) then
+                        output(i) = y(j)
+                        exit
+                    endif
+                enddo
+            enddo
 
         end subroutine
 
@@ -237,9 +246,98 @@ module Interpolation
                     endif
                 enddo
             enddo
+            do i=1,m
+                do j=1,n-1
+                    if (abs(input(i) - x(j)) < (0.001 * (x(j+1) - x(j)))) then
+                        output(i) = y(j)
+                        exit
+                    endif
+                enddo
+            enddo
 
         end subroutine
 
+
+
+        subroutine spline(n,x,y,m,input,output,BC_type,bc)
+
+            implicit none
+            integer             :: BC_type, n, m, i, j, k, temp
+            real                :: x(0:n-1), y(0:n-1), input(m), output(m),bc(2)
+            real                :: mi(0:n-1), alpha(0:n-1), beta(0:n-1), A(0:n-1), B(0:n-1),h(0:n-1)
+
+            do i=0,n-2
+                do j=0,i
+                    if (x(j) > x(j+1)) then
+                        temp = x(j)
+                        x(j) = x(j+1)
+                        x(j+1) = temp
+                        temp = y(j)
+                        y(j) = y(j+1)
+                        y(j+1) = temp
+                    endif
+                 end do
+            enddo
+
+
+            if ((BC_type == 1) .or. (BC_type == 2) .eqv. .false.) then
+                print *, char(27) // '[31m' // "错误！非法的输入（BC_type）边界条件必须取1或2" 
+                stop
+            endif
+            
+            do i=0,n-2
+                h(i) = x(i+1) - x(i)
+            enddo
+            if(BC_type == 1) then
+                do i=1,n-2
+                    alpha(i) = h(i-1)/(h(i-1) + h(i))
+                    beta(i) = 3.0 * ((1.0 - alpha(i)) * (y(i) - y(i-1)) / h(i-1) + alpha(i) * (y(i+1) - y(i)) / h(i))
+                enddo
+                A(0) = 0.0
+                B(0) = bc(1)
+                do i=1,n-1
+                    A(i) = - alpha(i) / ((1.0 - alpha(i)) * A(i-1) + 2)
+                    B(i) = (beta(i) - (1.0 - alpha(i)) * B(i-1)) / ((1.0 - alpha(i)) * A(i-1) + 2)
+                enddo
+                mi(0) = bc(1)
+                mi(n-1) = bc(2)
+                do i=n-2,1,-1
+                    mi(i) = A(i) * mi(i+1) + B(i)
+                enddo
+                call cubic_hermite(n,x,y,mi,m,input,output)
+            endif
+
+            if (BC_type == 2) then
+                alpha(0) = 1.0
+                beta(0) = (3.0 / h(0)) * (y(1) - y(0)) - bc(1) * h(0) / 2.0
+                alpha(n-1) = 0.0
+                beta(n-1) = (3.0 / h(n-2)) * (y(n-1) - y(n-2)) + bc(2) * h(n-2) / 2.0
+                do i=1,n-2
+                    alpha(i) = h(i-1) / (h(i) + h(i-1))
+                    beta(i) = 3.0 * ((1.0 - alpha(i)) * (y(i) - y(i-1)) / h(i-1) + (y(i+1) - y(i)) * alpha(i) / h(i))
+                enddo
+                A(0) = -0.5 * alpha(0)
+                B(0) = 0.5 * beta(0)
+                do i=1,n-1
+                    A(i) = -alpha(i) / ((1.0 - alpha(i)) * A(i-1) + 2.0)
+                    B(i) = (beta(i) - (1.0 - alpha(i)) * B(i-1)) / ((1 - alpha(i) * A(i-1)) + 2.0)
+                enddo
+                mi(n-1) = B(n-1)
+                do i=n-2,0,-1
+                    mi(i) = A(i) * mi(i+1) + B(i)
+                enddo
+                call cubic_hermite(n,x,y,mi,m,input,output)
+            endif
+            do i=1,m
+                do j=1,n-1
+                    if (abs(input(i) - x(j)) < (0.001 * (x(j+1) - x(j)))) then
+                        output(i) = y(j)
+                        exit
+                    endif
+                enddo
+            enddo
+            
+        end subroutine
 
 end module
 
